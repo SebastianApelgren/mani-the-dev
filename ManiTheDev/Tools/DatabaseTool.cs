@@ -1,19 +1,16 @@
-using ManiTheDev.Interfaces;
+using ManiTheDev.Interfaces.Tools;
 using ManiTheDev.Models;
 using ManiTheDev.Utilities;
-using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace ManiTheDev.Tools;
 
 public class DatabaseTool : IDatabaseTool
 {
-    private readonly ILogger<DatabaseTool> _logger;
     private readonly string _baseDirectory;
 
-    public DatabaseTool(ILogger<DatabaseTool> logger, string baseDirectory)
+    public DatabaseTool(string baseDirectory)
     {
-        _logger = logger;
         _baseDirectory = baseDirectory;
     }
 
@@ -22,21 +19,17 @@ public class DatabaseTool : IDatabaseTool
         try
         {
             var fullPath = Path.Combine(_baseDirectory, filePath);
-            _logger.LogInformation("Reading database: {FilePath}", fullPath);
             
             if (!File.Exists(fullPath))
             {
-                _logger.LogWarning("Database file does not exist: {FilePath}", fullPath);
                 return ToolResult<string>.CreateFailure($"Database file not found: {filePath}", "Failed to read database");
             }
 
             var content = await File.ReadAllTextAsync(fullPath);
-            _logger.LogInformation("Successfully read database: {FilePath}, Size: {Size} bytes", fullPath, content.Length);
             return ToolResult<string>.CreateSuccess(content, $"Successfully read database: {filePath}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading database: {FilePath}", filePath);
             return ToolResult<string>.CreateFailure($"Error reading database: {ex.Message}", "Failed to read database");
         }
     }
@@ -46,7 +39,6 @@ public class DatabaseTool : IDatabaseTool
         try
         {
             var fullPath = Path.Combine(_baseDirectory, filePath);
-            _logger.LogInformation("Writing database: {FilePath}, Size: {Size} bytes", fullPath, jsonContent.Length);
             
             // Validate JSON before writing
             if (!JsonUtility.ValidateJson(jsonContent))
@@ -59,16 +51,13 @@ public class DatabaseTool : IDatabaseTool
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
-                _logger.LogInformation("Created directory: {Directory}", directory);
             }
 
             await File.WriteAllTextAsync(fullPath, jsonContent);
-            _logger.LogInformation("Successfully wrote database: {FilePath}", fullPath);
             return ToolResult<string>.CreateSuccess(jsonContent, $"Successfully wrote database: {filePath}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error writing database: {FilePath}", filePath);
             return ToolResult<string>.CreateFailure($"Error writing database: {ex.Message}", "Failed to write database");
         }
     }
@@ -78,11 +67,9 @@ public class DatabaseTool : IDatabaseTool
         try
         {
             var fullPath = Path.Combine(_baseDirectory, filePath);
-            _logger.LogInformation("Creating database: {FilePath}, Size: {Size} bytes", fullPath, jsonContent.Length);
             
             if (File.Exists(fullPath))
             {
-                _logger.LogWarning("Database file already exists: {FilePath}", fullPath);
                 return ToolResult<string>.CreateFailure($"Database file already exists: {filePath}", "Failed to create database");
             }
 
@@ -97,16 +84,13 @@ public class DatabaseTool : IDatabaseTool
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
-                _logger.LogInformation("Created directory: {Directory}", directory);
             }
 
             await File.WriteAllTextAsync(fullPath, jsonContent);
-            _logger.LogInformation("Successfully created database: {FilePath}", fullPath);
             return ToolResult<string>.CreateSuccess(jsonContent, $"Successfully created database: {filePath}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating database: {FilePath}", filePath);
             return ToolResult<string>.CreateFailure($"Error creating database: {ex.Message}", "Failed to create database");
         }
     }
@@ -116,11 +100,9 @@ public class DatabaseTool : IDatabaseTool
         try
         {
             var fullPath = Path.Combine(_baseDirectory, filePath);
-            _logger.LogInformation("Adding/replacing line {LineNumber} to database: {FilePath}, Replace: {Replace}", lineNumber, fullPath, replace);
             
             if (!File.Exists(fullPath))
             {
-                _logger.LogWarning("Database file does not exist: {FilePath}", fullPath);
                 return ToolResult<string>.CreateFailure($"Database file not found: {filePath}", "Failed to modify database");
             }
 
@@ -158,14 +140,12 @@ public class DatabaseTool : IDatabaseTool
 
             // Write the validated content
             await File.WriteAllLinesAsync(fullPath, newLines);
-            _logger.LogInformation("Successfully modified database: {FilePath}", fullPath);
             
             var action = replace ? "replaced" : "added";
             return ToolResult<string>.CreateSuccess(modifiedContent, $"Successfully {action} line {lineNumber} in database: {filePath}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error modifying database: {FilePath}", filePath);
             return ToolResult<string>.CreateFailure($"Error modifying database: {ex.Message}", "Failed to modify database");
         }
     }
@@ -175,11 +155,9 @@ public class DatabaseTool : IDatabaseTool
         try
         {
             var fullPath = Path.Combine(_baseDirectory, filePath);
-            _logger.LogInformation("Searching for '{SearchText}' in database: {FilePath}", searchText, fullPath);
             
             if (!File.Exists(fullPath))
             {
-                _logger.LogWarning("Database file does not exist: {FilePath}", fullPath);
                 return ToolResult<IEnumerable<int>>.CreateFailure($"Database file not found: {filePath}", "Failed to search database");
             }
 
@@ -194,12 +172,10 @@ public class DatabaseTool : IDatabaseTool
                 }
             }
             
-            _logger.LogInformation("Found {Count} matching lines in database: {FilePath}", matchingLines.Count, fullPath);
             return ToolResult<IEnumerable<int>>.CreateSuccess(matchingLines, $"Found {matchingLines.Count} matching lines in database: {filePath}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching in database: {FilePath}", filePath);
             return ToolResult<IEnumerable<int>>.CreateFailure($"Error searching database: {ex.Message}", "Failed to search database");
         }
     }

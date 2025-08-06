@@ -1,6 +1,6 @@
 using ManiTheDev.Models;
 
-namespace ManiTheDev.Interfaces;
+namespace ManiTheDev.Interfaces.Tools;
 
 public interface IDatabaseTool
 {

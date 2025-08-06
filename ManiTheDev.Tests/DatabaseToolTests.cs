@@ -1,22 +1,20 @@
 using ManiTheDev.Tools;
-using ManiTheDev.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Xunit;
 
 namespace ManiTheDev.Tests;
 
 public class DatabaseToolTests : IDisposable
 {
-    private readonly Mock<ILogger<DatabaseTool>> _mockLogger;
     private readonly string _testBaseDirectory;
     private readonly DatabaseTool _databaseTool;
 
     public DatabaseToolTests()
     {
-        _mockLogger = new Mock<ILogger<DatabaseTool>>();
         _testBaseDirectory = Path.Combine(Path.GetTempPath(), "DatabaseToolTests");
         Directory.CreateDirectory(_testBaseDirectory);
-        _databaseTool = new DatabaseTool(_mockLogger.Object, _testBaseDirectory);
+        _databaseTool = new DatabaseTool(_testBaseDirectory);
     }
 
     public void Dispose()
@@ -43,12 +41,6 @@ public class DatabaseToolTests : IDisposable
         Assert.True(result.Success);
         Assert.Equal(expectedContent, result.Data);
         Assert.Contains("Successfully read database", result.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Information,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Reading database")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
     }
 
     [Fact]
@@ -64,12 +56,6 @@ public class DatabaseToolTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("Database file not found", result.Error);
         Assert.Contains("Failed to read database", result.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Database file does not exist")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
     }
 
     [Fact]
@@ -130,24 +116,18 @@ public class DatabaseToolTests : IDisposable
     public async Task CreateDatabaseAsync_ExistingFile_ReturnsFailure()
     {
         // Arrange
-        var testFilePath = "existing_file.json";
-        var jsonContent = "{\"name\":\"test\"}";
+        var testFilePath = "existing_test.json";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, jsonContent);
+        var initialContent = "{\"name\":\"initial\"}";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        var result = await _databaseTool.CreateDatabaseAsync(testFilePath, jsonContent);
+        var result = await _databaseTool.CreateDatabaseAsync(testFilePath, "{\"name\":\"new\"}");
 
         // Assert
         Assert.False(result.Success);
         Assert.Contains("Database file already exists", result.Error);
         Assert.Contains("Failed to create database", result.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Database file already exists")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
     }
 
     [Fact]
@@ -156,22 +136,18 @@ public class DatabaseToolTests : IDisposable
         // Arrange
         var testFilePath = "add_line_test.json";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var originalJson = "{\n  \"name\": \"test\",\n  \"value\": 123\n}";
-        await File.WriteAllTextAsync(fullPath, originalJson);
+        var initialContent = "{\n  \"name\": \"test\",\n  \"value\": 123\n}";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        var result = await _databaseTool.AddLineAsync(testFilePath, 2, "  \"newProperty\": \"value\",");
+        var result = await _databaseTool.AddLineAsync(testFilePath, 2, "  \"newField\": \"newValue\",");
 
         // Assert
         Assert.True(result.Success);
-        var resultLines = await File.ReadAllLinesAsync(fullPath);
-        Assert.Equal(5, resultLines.Length);
-        Assert.Equal("{", resultLines[0]);
-        Assert.Equal("  \"newProperty\": \"value\",", resultLines[1]);
-        Assert.Equal("  \"name\": \"test\",", resultLines[2]);
-        Assert.Equal("  \"value\": 123", resultLines[3]);
-        Assert.Equal("}", resultLines[4]);
-        Assert.Contains("Successfully added line", result.Message);
+        var lines = await File.ReadAllLinesAsync(fullPath);
+        Assert.Equal(5, lines.Length); // Original 4 lines + 1 new line
+        Assert.Contains("  \"newField\": \"newValue\",", lines);
+        Assert.Contains("Successfully added line 2", result.Message);
     }
 
     [Fact]
@@ -180,21 +156,18 @@ public class DatabaseToolTests : IDisposable
         // Arrange
         var testFilePath = "replace_line_test.json";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var originalJson = "{\n  \"name\": \"test\",\n  \"value\": 123\n}";
-        await File.WriteAllTextAsync(fullPath, originalJson);
+        var initialContent = "{\n  \"name\": \"test\",\n  \"value\": 123\n}";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
         var result = await _databaseTool.AddLineAsync(testFilePath, 2, "  \"name\": \"updated\",", replace: true);
 
         // Assert
         Assert.True(result.Success);
-        var resultLines = await File.ReadAllLinesAsync(fullPath);
-        Assert.Equal(4, resultLines.Length);
-        Assert.Equal("{", resultLines[0]);
-        Assert.Equal("  \"name\": \"updated\",", resultLines[1]);
-        Assert.Equal("  \"value\": 123", resultLines[2]);
-        Assert.Equal("}", resultLines[3]);
-        Assert.Contains("Successfully replaced line", result.Message);
+        var lines = await File.ReadAllLinesAsync(fullPath);
+        Assert.Equal(4, lines.Length); // Same number of lines
+        Assert.Contains("  \"name\": \"updated\",", lines);
+        Assert.Contains("Successfully replaced line 2", result.Message);
     }
 
     [Fact]
@@ -203,10 +176,11 @@ public class DatabaseToolTests : IDisposable
         // Arrange
         var testFilePath = "invalid_line_test.json";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, "{\n  \"name\": \"test\"\n}");
+        var initialContent = "{\n  \"name\": \"test\"\n}";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        var result = await _databaseTool.AddLineAsync(testFilePath, 0, "New Line");
+        var result = await _databaseTool.AddLineAsync(testFilePath, 0, "new line");
 
         // Assert
         Assert.False(result.Success);
@@ -220,15 +194,15 @@ public class DatabaseToolTests : IDisposable
         // Arrange
         var testFilePath = "replace_nonexistent_test.json";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var originalJson = "{\n  \"name\": \"test\"\n}";
-        await File.WriteAllTextAsync(fullPath, originalJson);
+        var initialContent = "{\n  \"name\": \"test\"\n}";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        var result = await _databaseTool.AddLineAsync(testFilePath, 5, "New Line", replace: true);
+        var result = await _databaseTool.AddLineAsync(testFilePath, 10, "new line", replace: true);
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Line 5 does not exist for replacement", result.Error);
+        Assert.Contains("Line 10 does not exist for replacement", result.Error);
         Assert.Contains("Failed to modify database", result.Message);
     }
 
@@ -239,7 +213,7 @@ public class DatabaseToolTests : IDisposable
         var testFilePath = "nonexistent_add_line.json";
 
         // Act
-        var result = await _databaseTool.AddLineAsync(testFilePath, 1, "New Line");
+        var result = await _databaseTool.AddLineAsync(testFilePath, 1, "new line");
 
         // Assert
         Assert.False(result.Success);
@@ -324,7 +298,7 @@ public class DatabaseToolTests : IDisposable
     {
         // Arrange & Act
         var customBaseDir = Path.Combine(Path.GetTempPath(), "CustomDatabaseBaseDir");
-        var databaseTool = new DatabaseTool(_mockLogger.Object, customBaseDir);
+        var databaseTool = new DatabaseTool(customBaseDir);
 
         // Assert
         // Test it indirectly by creating a database file

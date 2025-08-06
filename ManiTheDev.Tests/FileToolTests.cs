@@ -1,21 +1,18 @@
 using ManiTheDev.Tools;
-using Microsoft.Extensions.Logging;
-using Moq;
+using ManiTheDev.Models;
 
 namespace ManiTheDev.Tests;
 
 public class FileToolTests : IDisposable
 {
-    private readonly Mock<ILogger<FileTool>> _mockLogger;
     private readonly string _testBaseDirectory;
     private readonly FileTool _fileTool;
 
     public FileToolTests()
     {
-        _mockLogger = new Mock<ILogger<FileTool>>();
         _testBaseDirectory = Path.Combine(Path.GetTempPath(), "FileToolTests");
         Directory.CreateDirectory(_testBaseDirectory);
-        _fileTool = new FileTool(_mockLogger.Object, _testBaseDirectory);
+        _fileTool = new FileTool(_testBaseDirectory);
     }
 
     public void Dispose()
@@ -27,7 +24,7 @@ public class FileToolTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadFileAsync_ExistingFile_ReturnsContent()
+    public async Task ReadFileAsync_ExistingFile_ReturnsSuccessWithContent()
     {
         // Arrange
         var testFilePath = "test.txt";
@@ -39,45 +36,41 @@ public class FileToolTests : IDisposable
         var result = await _fileTool.ReadFileAsync(testFilePath);
 
         // Assert
-        Assert.Equal(expectedContent, result);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Information,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Reading file")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+        Assert.True(result.Success);
+        Assert.Equal(expectedContent, result.Data);
+        Assert.Contains("Successfully read file", result.Message);
     }
 
     [Fact]
-    public async Task ReadFileAsync_NonExistentFile_ThrowsFileNotFoundException()
+    public async Task ReadFileAsync_NonExistentFile_ReturnsFailure()
     {
         // Arrange
         var testFilePath = "nonexistent.txt";
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            () => _fileTool.ReadFileAsync(testFilePath));
-        
-        Assert.Contains("File not found", exception.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("File does not exist")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+        // Act
+        var result = await _fileTool.ReadFileAsync(testFilePath);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File not found", result.Error);
+        Assert.Contains("Failed to read file", result.Message);
     }
 
     [Fact]
-    public async Task WriteFileAsync_NewFile_CreatesFileWithContent()
+    public async Task WriteFileAsync_NewFile_ReturnsSuccess()
     {
         // Arrange
         var testFilePath = "write_test.txt";
         var content = "Test content for writing";
 
         // Act
-        await _fileTool.WriteFileAsync(testFilePath, content);
+        var result = await _fileTool.WriteFileAsync(testFilePath, content);
 
         // Assert
+        Assert.True(result.Success);
+        Assert.Equal(content, result.Data);
+        Assert.Contains("Successfully wrote file", result.Message);
+        
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
         Assert.True(File.Exists(fullPath));
         var writtenContent = await File.ReadAllTextAsync(fullPath);
@@ -89,15 +82,19 @@ public class FileToolTests : IDisposable
     {
         // Arrange
         var testFilePath = "overwrite_test.txt";
-        var originalContent = "Original content";
+        var initialContent = "Initial content";
         var newContent = "New content";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, originalContent);
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        await _fileTool.WriteFileAsync(testFilePath, newContent);
+        var result = await _fileTool.WriteFileAsync(testFilePath, newContent);
 
         // Assert
+        Assert.True(result.Success);
+        Assert.Equal(newContent, result.Data);
+        Assert.Contains("Successfully wrote file", result.Message);
+        
         var writtenContent = await File.ReadAllTextAsync(fullPath);
         Assert.Equal(newContent, writtenContent);
     }
@@ -106,13 +103,16 @@ public class FileToolTests : IDisposable
     public async Task WriteFileAsync_NonExistentDirectory_CreatesDirectory()
     {
         // Arrange
-        var testFilePath = "subdir/test.txt";
+        var testFilePath = "subdirectory/write_test.txt";
         var content = "Test content";
 
         // Act
-        await _fileTool.WriteFileAsync(testFilePath, content);
+        var result = await _fileTool.WriteFileAsync(testFilePath, content);
 
         // Assert
+        Assert.True(result.Success);
+        Assert.Equal(content, result.Data);
+        
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
         Assert.True(File.Exists(fullPath));
         var writtenContent = await File.ReadAllTextAsync(fullPath);
@@ -120,16 +120,20 @@ public class FileToolTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateFileAsync_NewFile_CreatesFileWithContent()
+    public async Task CreateFileAsync_NewFile_ReturnsSuccess()
     {
         // Arrange
         var testFilePath = "create_test.txt";
         var content = "Test content for creation";
 
         // Act
-        await _fileTool.CreateFileAsync(testFilePath, content);
+        var result = await _fileTool.CreateFileAsync(testFilePath, content);
 
         // Assert
+        Assert.True(result.Success);
+        Assert.Equal(content, result.Data);
+        Assert.Contains("Successfully created file", result.Message);
+        
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
         Assert.True(File.Exists(fullPath));
         var writtenContent = await File.ReadAllTextAsync(fullPath);
@@ -137,67 +141,67 @@ public class FileToolTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateFileAsync_ExistingFile_ThrowsInvalidOperationException()
+    public async Task CreateFileAsync_ExistingFile_ReturnsFailure()
     {
         // Arrange
-        var testFilePath = "existing_file.txt";
-        var content = "Test content";
+        var testFilePath = "existing_create_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, content);
+        var initialContent = "Initial content";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _fileTool.CreateFileAsync(testFilePath, content));
+        // Act
+        var result = await _fileTool.CreateFileAsync(testFilePath, "New content");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File already exists", result.Error);
+        Assert.Contains("Failed to create file", result.Message);
         
-        Assert.Contains("File already exists", exception.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("File already exists")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+        // Verify the original content wasn't changed
+        var existingContent = await File.ReadAllTextAsync(fullPath);
+        Assert.Equal(initialContent, existingContent);
     }
 
     [Fact]
-    public async Task DeleteFileAsync_ExistingFile_DeletesFile()
+    public async Task DeleteFileAsync_ExistingFile_ReturnsSuccess()
     {
         // Arrange
         var testFilePath = "delete_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, "Test content");
+        var content = "Content to delete";
+        await File.WriteAllTextAsync(fullPath, content);
 
         // Act
-        await _fileTool.DeleteFileAsync(testFilePath);
+        var result = await _fileTool.DeleteFileAsync(testFilePath);
 
         // Assert
+        Assert.True(result.Success);
+        Assert.Equal(string.Empty, result.Data);
+        Assert.Contains("Successfully deleted file", result.Message);
         Assert.False(File.Exists(fullPath));
     }
 
     [Fact]
-    public async Task DeleteFileAsync_NonExistentFile_ThrowsFileNotFoundException()
+    public async Task DeleteFileAsync_NonExistentFile_ReturnsFailure()
     {
         // Arrange
         var testFilePath = "nonexistent_delete.txt";
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            () => _fileTool.DeleteFileAsync(testFilePath));
-        
-        Assert.Contains("File not found", exception.Message);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("File does not exist")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+        // Act
+        var result = await _fileTool.DeleteFileAsync(testFilePath);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File not found", result.Error);
+        Assert.Contains("Failed to delete file", result.Message);
     }
 
     [Fact]
-    public async Task ListFilesAsync_ExistingDirectory_ReturnsFileList()
+    public async Task ListFilesAsync_ExistingDirectory_ReturnsSuccessWithFileList()
     {
         // Arrange
-        var testDir = "list_test_dir";
-        var fullDirPath = Path.Combine(_testBaseDirectory, testDir);
+        var testDirectory = "list_test_dir";
+        var fullDirPath = Path.Combine(_testBaseDirectory, testDirectory);
         Directory.CreateDirectory(fullDirPath);
         
         var files = new[] { "file1.txt", "file2.txt", "file3.txt" };
@@ -207,168 +211,183 @@ public class FileToolTests : IDisposable
         }
 
         // Act
-        var result = await _fileTool.ListFilesAsync(testDir);
+        var result = await _fileTool.ListFilesAsync(testDirectory);
 
         // Assert
-        var resultList = result.ToList();
-        Assert.Equal(files.Length, resultList.Count);
-        foreach (var file in files)
-        {
-            Assert.Contains(file, resultList);
-        }
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        var fileList = result.Data!.ToList();
+        Assert.Equal(3, fileList.Count);
+        Assert.Contains("file1.txt", fileList);
+        Assert.Contains("file2.txt", fileList);
+        Assert.Contains("file3.txt", fileList);
+        Assert.Contains("Successfully listed files", result.Message);
     }
 
     [Fact]
-    public async Task ListFilesAsync_NonExistentDirectory_ReturnsEmptyEnumerable()
+    public async Task ListFilesAsync_NonExistentDirectory_ReturnsSuccessWithEmptyList()
     {
         // Arrange
-        var testDir = "nonexistent_dir";
+        var testDirectory = "nonexistent_list_dir";
 
         // Act
-        var result = await _fileTool.ListFilesAsync(testDir);
+        var result = await _fileTool.ListFilesAsync(testDirectory);
 
         // Assert
-        Assert.Empty(result);
-        _mockLogger.Verify(x => x.Log(
-            LogLevel.Warning,
-            It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Directory does not exist")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data!);
+        Assert.Contains("Directory not found", result.Message);
     }
 
     [Fact]
-    public async Task AddLineAsync_ValidLineNumber_InsertsLine()
+    public async Task AddLineAsync_ValidLineNumber_ReturnsSuccess()
     {
         // Arrange
         var testFilePath = "add_line_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var originalLines = new[] { "Line 1", "Line 2", "Line 3" };
-        await File.WriteAllLinesAsync(fullPath, originalLines);
+        var initialContent = "Line 1\nLine 2\nLine 3";
+        await File.WriteAllTextAsync(fullPath, initialContent);
 
         // Act
-        await _fileTool.AddLineAsync(testFilePath, 2, "New Line");
+        var result = await _fileTool.AddLineAsync(testFilePath, 2, "New line");
 
         // Assert
-        var resultLines = await File.ReadAllLinesAsync(fullPath);
-        Assert.Equal(4, resultLines.Length);
-        Assert.Equal("Line 1", resultLines[0]);
-        Assert.Equal("New Line", resultLines[1]);
-        Assert.Equal("Line 2", resultLines[2]);
-        Assert.Equal("Line 3", resultLines[3]);
+        Assert.True(result.Success);
+        Assert.Contains("Successfully added line 2", result.Message);
+        
+        var lines = await File.ReadAllLinesAsync(fullPath);
+        Assert.Equal(4, lines.Length);
+        Assert.Equal("Line 1", lines[0]);
+        Assert.Equal("New line", lines[1]);
+        Assert.Equal("Line 2", lines[2]);
+        Assert.Equal("Line 3", lines[3]);
     }
 
     [Fact]
-    public async Task AddLineAsync_InvalidLineNumber_ThrowsArgumentException()
+    public async Task AddLineAsync_InvalidLineNumber_ReturnsFailure()
     {
         // Arrange
         var testFilePath = "invalid_line_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        await File.WriteAllTextAsync(fullPath, "Test content");
+        await File.WriteAllTextAsync(fullPath, "Line 1\nLine 2");
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _fileTool.AddLineAsync(testFilePath, 0, "New Line"));
-        
-        Assert.Contains("Line number must be 1 or greater", exception.Message);
+        // Act
+        var result = await _fileTool.AddLineAsync(testFilePath, 0, "New line");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Line number must be 1 or greater", result.Error);
+        Assert.Contains("Failed to modify file", result.Message);
     }
 
     [Fact]
-    public async Task AddLineAsync_NonExistentFile_ThrowsFileNotFoundException()
+    public async Task AddLineAsync_NonExistentFile_ReturnsFailure()
     {
         // Arrange
         var testFilePath = "nonexistent_add_line.txt";
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            () => _fileTool.AddLineAsync(testFilePath, 1, "New Line"));
-        
-        Assert.Contains("File not found", exception.Message);
+        // Act
+        var result = await _fileTool.AddLineAsync(testFilePath, 1, "New line");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File not found", result.Error);
+        Assert.Contains("Failed to modify file", result.Message);
     }
 
     [Fact]
-    public async Task SearchInFileAsync_ExistingText_ReturnsMatchingLineNumbers()
+    public async Task SearchInFileAsync_ExistingText_ReturnsSuccessWithMatchingLineNumbers()
     {
         // Arrange
         var testFilePath = "search_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var lines = new[] { "First line", "Second line with search", "Third line", "Fourth line with search" };
-        await File.WriteAllLinesAsync(fullPath, lines);
+        var content = "First line\nSecond line with search\nThird line\nFourth line with search";
+        await File.WriteAllTextAsync(fullPath, content);
 
         // Act
         var result = await _fileTool.SearchInFileAsync(testFilePath, "search");
 
         // Assert
-        var resultList = result.ToList();
-        Assert.Equal(2, resultList.Count);
-        Assert.Contains(2, resultList); // "Second line with search"
-        Assert.Contains(4, resultList); // "Fourth line with search"
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        var lineNumbers = result.Data!.ToList();
+        Assert.Equal(2, lineNumbers.Count);
+        Assert.Contains(2, lineNumbers);
+        Assert.Contains(4, lineNumbers);
+        Assert.Contains("Found 2 matching lines", result.Message);
     }
 
     [Fact]
-    public async Task SearchInFileAsync_NonExistentText_ReturnsEmptyEnumerable()
+    public async Task SearchInFileAsync_NonExistentText_ReturnsSuccessWithEmptyList()
     {
         // Arrange
         var testFilePath = "search_empty_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var lines = new[] { "First line", "Second line", "Third line" };
-        await File.WriteAllLinesAsync(fullPath, lines);
+        var content = "First line\nSecond line\nThird line";
+        await File.WriteAllTextAsync(fullPath, content);
 
         // Act
         var result = await _fileTool.SearchInFileAsync(testFilePath, "nonexistent");
 
         // Assert
-        Assert.Empty(result);
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Empty(result.Data!);
+        Assert.Contains("Found 0 matching lines", result.Message);
     }
 
     [Fact]
-    public async Task SearchInFileAsync_NonExistentFile_ThrowsFileNotFoundException()
+    public async Task SearchInFileAsync_NonExistentFile_ReturnsFailure()
     {
         // Arrange
         var testFilePath = "nonexistent_search.txt";
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            () => _fileTool.SearchInFileAsync(testFilePath, "search"));
-        
-        Assert.Contains("File not found", exception.Message);
+        // Act
+        var result = await _fileTool.SearchInFileAsync(testFilePath, "search");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("File not found", result.Error);
+        Assert.Contains("Failed to search file", result.Message);
     }
 
     [Fact]
-    public async Task SearchInFileAsync_CaseInsensitiveSearch_ReturnsMatches()
+    public async Task SearchInFileAsync_CaseInsensitiveSearch_ReturnsSuccessWithMatches()
     {
         // Arrange
-        var testFilePath = "case_search_test.txt";
+        var testFilePath = "case_insensitive_test.txt";
         var fullPath = Path.Combine(_testBaseDirectory, testFilePath);
-        var lines = new[] { "First line", "SECOND LINE", "Third line", "fourth line" };
-        await File.WriteAllLinesAsync(fullPath, lines);
+        var content = "First line\nSecond line with SEARCH\nThird line\nFourth line with search";
+        await File.WriteAllTextAsync(fullPath, content);
 
         // Act
-        var result = await _fileTool.SearchInFileAsync(testFilePath, "line");
+        var result = await _fileTool.SearchInFileAsync(testFilePath, "search");
 
         // Assert
-        var resultList = result.ToList();
-        Assert.Equal(4, resultList.Count);
-        Assert.Contains(1, resultList);
-        Assert.Contains(2, resultList);
-        Assert.Contains(3, resultList);
-        Assert.Contains(4, resultList);
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        var lineNumbers = result.Data!.ToList();
+        Assert.Equal(2, lineNumbers.Count);
+        Assert.Contains(2, lineNumbers);
+        Assert.Contains(4, lineNumbers);
+        Assert.Contains("Found 2 matching lines", result.Message);
     }
 
     [Fact]
     public async Task Constructor_WithBaseDirectory_SetsBaseDirectory()
     {
         // Arrange & Act
-        var customBaseDir = Path.Combine(Path.GetTempPath(), "CustomBaseDir");
-        var fileTool = new FileTool(_mockLogger.Object, customBaseDir);
+        var customBaseDir = Path.Combine(Path.GetTempPath(), "CustomFileBaseDir");
+        var fileTool = new FileTool(customBaseDir);
 
         // Assert
-        // We can't directly access the private field, but we can test it indirectly
-        // by creating a file and checking it's in the right location
+        // Test it indirectly by creating a file
         var testFilePath = "constructor_test.txt";
         var content = "Test content";
-        await fileTool.WriteFileAsync(testFilePath, content);
+        var result = await fileTool.WriteFileAsync(testFilePath, content);
 
+        Assert.True(result.Success);
         var expectedPath = Path.Combine(customBaseDir, testFilePath);
         Assert.True(File.Exists(expectedPath));
 
