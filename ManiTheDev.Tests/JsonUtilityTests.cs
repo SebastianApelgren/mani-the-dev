@@ -2,16 +2,19 @@ using ManiTheDev.Utilities;
 
 namespace ManiTheDev.Tests;
 
+/// <summary>
+/// Unit tests for the JsonUtility class.
+/// </summary>
 public class JsonUtilityTests
 {
     [Fact]
     public void ValidateJson_ValidJson_ReturnsTrue()
     {
         // Arrange
-        var validJson = "{\"name\":\"test\",\"value\":123}";
+        string validJson = "{\"name\":\"test\",\"value\":123}";
 
         // Act
-        var result = JsonUtility.ValidateJson(validJson);
+        bool result = JsonUtility.ValidateJson(validJson);
 
         // Assert
         Assert.True(result);
@@ -21,10 +24,10 @@ public class JsonUtilityTests
     public void ValidateJson_InvalidJson_ReturnsFalse()
     {
         // Arrange
-        var invalidJson = "{invalid json}";
+        string invalidJson = "{invalid json}";
 
         // Act
-        var result = JsonUtility.ValidateJson(invalidJson);
+        bool result = JsonUtility.ValidateJson(invalidJson);
 
         // Assert
         Assert.False(result);
@@ -34,10 +37,10 @@ public class JsonUtilityTests
     public void ValidateJson_EmptyContent_ReturnsFalse()
     {
         // Arrange
-        var emptyJson = "";
+        string emptyJson = "";
 
         // Act
-        var result = JsonUtility.ValidateJson(emptyJson);
+        bool result = JsonUtility.ValidateJson(emptyJson);
 
         // Assert
         Assert.False(result);
@@ -47,10 +50,10 @@ public class JsonUtilityTests
     public void ValidateJson_WhitespaceContent_ReturnsFalse()
     {
         // Arrange
-        var whitespaceJson = "   \n\t   ";
+        string whitespaceJson = "   \n\t   ";
 
         // Act
-        var result = JsonUtility.ValidateJson(whitespaceJson);
+        bool result = JsonUtility.ValidateJson(whitespaceJson);
 
         // Assert
         Assert.False(result);
@@ -60,7 +63,7 @@ public class JsonUtilityTests
     public void ValidateJson_ComplexValidJson_ReturnsTrue()
     {
         // Arrange
-        var complexJson = @"{
+        string complexJson = @"{
             ""users"": [
                 {
                     ""id"": 1,
@@ -82,7 +85,7 @@ public class JsonUtilityTests
         }";
 
         // Act
-        var result = JsonUtility.ValidateJson(complexJson);
+        bool result = JsonUtility.ValidateJson(complexJson);
 
         // Assert
         Assert.True(result);
@@ -92,10 +95,10 @@ public class JsonUtilityTests
     public void FormatJson_ValidJson_ReturnsFormattedJson()
     {
         // Arrange
-        var compactJson = "{\"name\":\"test\",\"value\":123}";
+        string compactJson = "{\"name\":\"test\",\"value\":123}";
 
         // Act
-        var result = JsonUtility.FormatJson(compactJson);
+        string result = JsonUtility.FormatJson(compactJson);
 
         // Assert
         Assert.Contains("\n", result); // Should be formatted with newlines
@@ -109,13 +112,13 @@ public class JsonUtilityTests
     public void FormatJson_AlreadyFormattedJson_ReturnsFormattedJson()
     {
         // Arrange
-        var formattedJson = @"{
+        string formattedJson = @"{
   ""name"": ""test"",
   ""value"": 123
 }";
 
         // Act
-        var result = JsonUtility.FormatJson(formattedJson);
+        string result = JsonUtility.FormatJson(formattedJson);
 
         // Assert
         Assert.Contains("\n", result);
@@ -128,12 +131,12 @@ public class JsonUtilityTests
     public void FormatJson_InvalidJson_ThrowsArgumentException()
     {
         // Arrange
-        var invalidJson = "{invalid json}";
+        string invalidJson = "{invalid json}";
 
         // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => JsonUtility.FormatJson(invalidJson));
-        
+
         Assert.Contains("Invalid JSON content provided", exception.Message);
     }
 
@@ -141,12 +144,12 @@ public class JsonUtilityTests
     public void FormatJson_EmptyContent_ThrowsArgumentException()
     {
         // Arrange
-        var emptyJson = "";
+        string emptyJson = "";
 
         // Act & Assert
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => JsonUtility.FormatJson(emptyJson));
-        
+
         Assert.Contains("Invalid JSON content provided", exception.Message);
     }
 
@@ -154,10 +157,10 @@ public class JsonUtilityTests
     public void FormatJson_ComplexJson_ReturnsProperlyFormattedJson()
     {
         // Arrange
-        var complexJson = "{\"users\":[{\"id\":1,\"name\":\"John\",\"email\":\"john@example.com\",\"active\":true},{\"id\":2,\"name\":\"Jane\",\"email\":\"jane@example.com\",\"active\":false}],\"metadata\":{\"total\":2,\"version\":\"1.0\"}}";
+        string complexJson = "{\"users\":[{\"id\":1,\"name\":\"John\",\"email\":\"john@example.com\",\"active\":true},{\"id\":2,\"name\":\"Jane\",\"email\":\"jane@example.com\",\"active\":false}],\"metadata\":{\"total\":2,\"version\":\"1.0\"}}";
 
         // Act
-        var result = JsonUtility.FormatJson(complexJson);
+        string result = JsonUtility.FormatJson(complexJson);
 
         // Assert
         Assert.Contains("\n", result);
@@ -169,4 +172,4 @@ public class JsonUtilityTests
         Assert.Contains("true", result);
         Assert.Contains("false", result);
     }
-} 
+}
