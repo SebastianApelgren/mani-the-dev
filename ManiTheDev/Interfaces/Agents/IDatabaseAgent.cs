@@ -5,7 +5,7 @@ namespace ManiTheDev.Interfaces.Agents
     /// <summary>
     /// Database agent that handles all database operations.
     /// </summary>
-    public interface IDatabaseAgent : IAgent
+    internal interface IDatabaseAgent
     {
         /// <summary>
         /// Handles database schema operations (create, read, update schema).

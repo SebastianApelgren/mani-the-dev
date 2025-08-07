@@ -5,7 +5,7 @@ namespace ManiTheDev.Interfaces.Agents
     /// <summary>
     /// Coding agent that handles code generation and validation.
     /// </summary>
-    public interface ICodingAgent : IAgent
+    internal interface ICodingAgent
     {
         /// <summary>
         /// Handles code generation operations (generate from database, create hooks, validate code).

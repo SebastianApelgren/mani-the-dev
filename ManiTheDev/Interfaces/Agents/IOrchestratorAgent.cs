@@ -3,7 +3,7 @@ namespace ManiTheDev.Interfaces.Agents
     /// <summary>
     /// Orchestrator agent that plans and delegates work to other agents.
     /// </summary>
-    public interface IOrchestratorAgent : IAgent
+    public interface IOrchestratorAgent
     {
         /// <summary>
         /// Processes a user goal by creating a plan and delegating to appropriate agents.

@@ -107,6 +107,17 @@ namespace ManiTheDev.Configuration
                 Kernel kernel = Kernel.CreateBuilder()
                     .AddOpenAIChatCompletion("gpt-4", openAiApiKey)
                     .Build();
+
+                // Get the tools from DI
+                var databaseTool = provider.GetRequiredService<IDatabaseTool>();
+                var codeTool = provider.GetRequiredService<ICodeTool>();
+                var fileTool = provider.GetRequiredService<IFileTool>();
+
+                // Register all function wrappers with the kernel
+                kernel.ImportFunctionsFromObject(new DatabaseToolFunctions(databaseTool));
+                kernel.ImportFunctionsFromObject(new CodeToolFunctions(codeTool));
+                kernel.ImportFunctionsFromObject(new FileToolFunctions(fileTool));
+
                 return kernel;
             });
 
