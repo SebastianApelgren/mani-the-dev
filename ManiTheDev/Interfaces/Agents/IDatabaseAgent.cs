@@ -3,9 +3,9 @@ using ManiTheDev.Models;
 namespace ManiTheDev.Interfaces.Agents
 {
     /// <summary>
-    /// Database manager agent that handles all database operations.
+    /// Database agent that handles all database operations.
     /// </summary>
-    public interface IDatabaseManagerAgent : IAgent
+    public interface IDatabaseAgent : IAgent
     {
         /// <summary>
         /// Handles database schema operations (create, read, update schema).

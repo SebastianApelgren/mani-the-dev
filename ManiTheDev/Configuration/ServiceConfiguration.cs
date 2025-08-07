@@ -1,5 +1,7 @@
+using EasyReasy.EnvironmentVariables;
 using ManiTheDev.Interfaces.Tools;
 using ManiTheDev.Tools;
+using ManiTheDev.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -16,57 +18,65 @@ namespace ManiTheDev.Configuration
         /// Registers all services in the DI container.
         /// </summary>
         /// <param name="services">The service collection to register services in.</param>
-        /// <param name="workspacePath">The base workspace path for all agents.</param>
-        /// <param name="openAiApiKey">The OpenAI API key.</param>
-        public static void ConfigureServices(IServiceCollection services, string workspacePath, string openAiApiKey)
+        public static void ConfigureServices(IServiceCollection services)
         {
-            // Step 1: Register logging
+            // Step 1: Validate environment variables at startup
+            EnvironmentVariableHelper.ValidateVariableNamesIn(typeof(EnvironmentVariable));
+
+            // Step 2: Get environment variables
+            string openAiApiKey = EnvironmentVariable.OpenAiApiKey.GetValue();
+            string workspacePath = EnvironmentVariable.WorkspacePath.GetValue();
+
+            // Step 3: Setup workspace directory structure
+            var (workspacePathFull, codePath, databasePath) = WorkspaceUtility.SetupWorkspace(workspacePath);
+
+            // Step 4: Register logging
             services.AddLogging(builder =>
             {
                 builder.AddConsole();
                 builder.SetMinimumLevel(LogLevel.Information);
             });
 
-            // Step 2: Register tools
-            RegisterTools(services, workspacePath);
+            // Step 5: Register tools
+            RegisterTools(services, workspacePathFull, codePath, databasePath);
 
-            // Step 3: Register agents
+            // Step 6: Register agents
             RegisterAgents(services);
 
-            // Step 4: Register Semantic Kernel and planning
+            // Step 7: Register Semantic Kernel and planning
             RegisterSemanticKernel(services, openAiApiKey);
         }
 
-        private static void RegisterTools(IServiceCollection services, string workspacePath)
+        private static void RegisterTools(IServiceCollection services, string workspacePath, string codePath, string databasePath)
         {
-            // Register FileTool - each agent will get the same workspace path
+            // Register FileTool - uses the main workspace path for general file operations
             services.AddSingleton<IFileTool>(provider =>
             {
                 return new FileTool(workspacePath);
             });
 
-            // Register DatabaseTool - for JSON database operations
+            // Register DatabaseTool - uses the database subdirectory for JSON database operations
             services.AddSingleton<IDatabaseTool>(provider =>
             {
-                return new DatabaseTool(workspacePath);
+                return new DatabaseTool(databasePath);
             });
 
-            // Register CodeTool - placeholder implementation for now
+            // Register CodeTool - uses the code subdirectory for code generation operations
             services.AddSingleton<ICodeTool>(provider =>
             {
-                return new CodeTool(workspacePath);
+                return new CodeTool(codePath);
             });
         }
 
         private static void RegisterAgents(IServiceCollection services)
         {
-            // // Register DatabaseManagerAgent
-            // services.AddSingleton<IDatabaseManagerAgent>(provider =>
+            // // Register DatabaseAgent
+            // services.AddSingleton<IDatabaseAgent>(provider =>
             // {
-            //    var logger = provider.GetRequiredService<ILogger<DatabaseManagerAgent>>();
+            //    var logger = provider.GetRequiredService<ILogger<DatabaseAgent>>();
             //    var databaseTool = provider.GetRequiredService<IDatabaseTool>();
             //    var fileTool = provider.GetRequiredService<IFileTool>();
-            //    return new DatabaseManagerAgent(logger, databaseTool, fileTool);
+            //    return new DatabaseAgent(logger, databaseTool, fileTool);
             // });
 
             // // Register CodingAgent
@@ -82,7 +92,7 @@ namespace ManiTheDev.Configuration
             // services.AddSingleton<IOrchestratorAgent>(provider =>
             // {
             //    var logger = provider.GetRequiredService<ILogger<OrchestratorAgent>>();
-            //    var databaseAgent = provider.GetRequiredService<IDatabaseManagerAgent>();
+            //    var databaseAgent = provider.GetRequiredService<IDatabaseAgent>();
             //    var codingAgent = provider.GetRequiredService<ICodingAgent>();
             //    var kernel = provider.GetRequiredService<Kernel>();
             //    return new OrchestratorAgent(logger, databaseAgent, codingAgent, kernel);
